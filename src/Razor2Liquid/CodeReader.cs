@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Web.Razor.Parser.SyntaxTree;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -37,8 +38,9 @@ namespace Razor2Liquid
 
         private void HandleKind(SyntaxNode node, ReadingContext context)
         {
-            if (node is CompilationUnitSyntax)
+            if (node is CompilationUnitSyntax compilationUnit)
             {
+                HandleCompilationUnit(compilationUnit, context);
                 return;
             }
 
@@ -49,6 +51,31 @@ namespace Razor2Liquid
             else if (node is GlobalStatementSyntax globalStatementSyntax)
             {
                 HandleGlobalStatement(globalStatementSyntax, context);
+            }
+        }
+
+        void HandleCompilationUnit(CompilationUnitSyntax compilationUnit, ReadingContext context)
+        {
+            var childNodes = compilationUnit.ChildNodes().ToArray();
+            if (childNodes.Length == 1)
+            {
+                if (childNodes[0].Kind() == SyntaxKind.IncompleteMember)
+                {
+                    var name = childNodes[0].ToString();
+                    if (name != "model")
+                    {
+                        context.Liquid.AppendFormat("{{{{ {0} }}}}", name);
+                    }
+                }
+            } else if (childNodes.Length == 0)
+            {
+                if (context.Inner.Count > 0)
+                {
+                    var what = context.Inner.Pop();
+                    context.Liquid.AppendFormat("{{% end{0} %}}", what);
+                    context.Liquid.AppendLine();
+
+                }
             }
         }
 
@@ -67,8 +94,6 @@ namespace Razor2Liquid
         private void HandleCode(SyntaxNode node, ReadingContext context)
         {
             var kind = node.Kind();
-            
-
             var transformer = new CodeTransformer(context);
             transformer.TransformStatement(node);
         }

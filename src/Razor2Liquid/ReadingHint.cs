@@ -3,6 +3,7 @@
     public enum ReadingHint
     {
         None,
-        SkipNextMarkupLine
+        SkipNextMarkupLine,
+        Expression
     }
 }

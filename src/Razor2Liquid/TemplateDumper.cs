@@ -32,16 +32,16 @@ namespace Razor2Liquid
         private void Code(string objContent)
         {
             var tree = CSharpSyntaxTree.ParseText(objContent);
-            WriteMode(tree.GetRoot(), "+");
+            WriteNode(tree.GetRoot(), "+");
         }
 
-        private void WriteMode(SyntaxNode node, string prefix)
+        private void WriteNode(SyntaxNode node, string prefix)
         {
             Console.WriteLine("{2}{0}:{1}", node.Kind(), node, prefix);
             prefix += "--";
             foreach (var childNode in node.ChildNodes())
             {
-                WriteMode(childNode, prefix);
+                WriteNode(childNode, prefix);
             }
         }
     }

@@ -8,6 +8,14 @@ namespace Razor2Liquid
 {
     public class RazorReader
     {
+        Action<string, object[]> _console;
+
+        public RazorReader(Action<string, object[]> console = null)
+        {
+            _console = console;
+        }
+
+
         public LiquidModel GetLiquidModel(string razorPage)
         {
             var template = File.ReadAllText(razorPage);
@@ -19,7 +27,8 @@ namespace Razor2Liquid
             var parser = new RazorParser(new CSharpCodeParser(), new HtmlMarkupParser());
             var model = new LiquidModel();
             var context = new ReadingContext(model);
-            ParserVisitor visitor = new CallbackVisitor(span => Callback(span, context), error => ErrorCallback(error, context));
+            ParserVisitor visitor =
+                new CallbackVisitor(span => Callback(span, context), error => ErrorCallback(error, context));
 
             parser.Parse(reader, visitor);
             return model;
@@ -32,7 +41,7 @@ namespace Razor2Liquid
 
         private void Callback(Span span, ReadingContext context)
         {
-//            Console.WriteLine("{0}:{1}", span.Kind, span.Content);
+            _console?.Invoke("RazorReader= {0}:{1}", new object[] { span.Kind, span.Content });
 
             switch (span.Kind)
             {
@@ -73,7 +82,7 @@ namespace Razor2Liquid
 
         private string RemoveFirstLine(string markup)
         {
-            var parts = markup.Split(separator: new[] {"\r\n", "\n"}, StringSplitOptions.None);
+            var parts = markup.Split(separator: new[] { "\r\n", "\n" }, StringSplitOptions.None);
             return string.Join(Environment.NewLine, parts.Skip(1));
         }
     }

@@ -1,11 +1,18 @@
 using System;
 using FluentAssertions;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace RazorLiquid.Tests
 {
     public class LiquidReaderTests : ReaderTests
     {
+        readonly ITestOutputHelper _outputHelper;
+
+        public LiquidReaderTests(ITestOutputHelper outputHelper)
+        {
+            _outputHelper = outputHelper;
+        }
         [Fact]
         public void Markup_Simple()
         {
@@ -92,7 +99,7 @@ namespace RazorLiquid.Tests
   </body>
 </html>
 ";
-            var result = GetLiquidString(source);
+            var result = GetLiquidString(source, (t,a)=>_outputHelper.WriteLine(t,a));
 
             result.Should().Be(expected);
         }

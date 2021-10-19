@@ -1,6 +1,7 @@
 ﻿using System;
-using System.Globalization;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection.Metadata;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -38,13 +39,28 @@ namespace Razor2Liquid
                     break;
 
                 default:
-                    throw new ArgumentException(nameof(node), $"Node-Kind of {node.Kind()} is not allowed");
+                    throw new ArgumentException(nameof(node), $"Node-Kind of {node.Kind()} is not allowed {node}");
             }
         }
 
         private void HandleIf(SyntaxNode node)
         {
-//            throw new NotImplementedException();
+            if (node is IfStatementSyntax ifSyntax)
+            {
+                StartCode();
+                _context.Liquid.Append("if ");
+                var old = _context.Hint;
+                _context.Hint = ReadingHint.Expression;
+                WriteNode(ifSyntax.Condition);
+                EndCode();
+                WriteNode(ifSyntax.Statement);
+                _context.Hint = old;
+                _context.Liquid.AppendLine();
+                _context.Inner.Push("if");
+                return;
+            }
+
+            WriteAsComment(node.ToString());
         }
 
         private void HandleForEach(SyntaxNode node)
@@ -114,10 +130,7 @@ namespace Razor2Liquid
 
             if (_context.AsComment != null)
             {
-                _context.Model.Liquid.AppendLine();
-                _context.Model.Liquid.AppendLine("{% comment %}");
-                _context.Model.Liquid.AppendLine(_context.AsComment.ToString());
-                _context.Model.Liquid.AppendLine("{% endcomment %}");
+                WriteAsComment(_context.AsComment.ToString());
                 _context.AsComment = null;
             }
 
@@ -125,6 +138,20 @@ namespace Razor2Liquid
             {
                 throw new InvalidOperationException($"CodeCounter is {_context.CodeCounter}");
             }
+        }
+
+        void WriteAsComment(string value, Type getType = null)
+        {
+            _context.Model.Liquid.AppendLine();
+            _context.Model.Liquid.AppendLine("{% comment %}");
+            if (getType != null)
+            {
+                _context.Liquid.AppendFormat("---Expression: {0} ----", getType.Name);
+                _context.Liquid.AppendLine();
+            }
+
+            _context.Model.Liquid.AppendLine(value);
+            _context.Model.Liquid.AppendLine("{% endcomment %}");
         }
 
         private void WriteNode(SyntaxNode node)
@@ -149,6 +176,87 @@ namespace Razor2Liquid
             {
                 WriteVariableDeclaration(variableDeclaration);
             }
+            else if (node is ExpressionStatementSyntax expressionStatement)
+            {
+                WriteExpressionStatement(expressionStatement);
+            }
+            else if (node is IdentifierNameSyntax identifierName)
+            {
+                WriteIdentifierName(identifierName);
+            }
+            else if (node is BlockSyntax block)
+            {
+                WriteBlock(block);
+            }
+            else if (ShouldAsComment(node))
+            {
+                WriteAsComment(node.ToString(), node.GetType());
+            }
+            else if (node is LocalDeclarationStatementSyntax localDeclarationStatement)
+            {
+                WriteAsComment(node.ToString(), node.GetType());
+            }
+            else
+            {
+                throw new NotSupportedException($"{node.GetType().Name} is not supported {node.ToString()}");
+            }
+        }
+
+        void WriteExpressionStatement(ExpressionStatementSyntax expressionStatement)
+        {
+            if (expressionStatement.Expression is AssignmentExpressionSyntax ae)
+            {
+                _context.Liquid.AppendLine();
+                _context.Liquid.Append("{% assign ");
+                WriteExpression(ae.Left);
+                _context.Liquid.Append(" = ");
+                WriteExpression(ae.Right);
+                _context.Liquid.Append(" %}");
+            }
+        }
+
+        void WriteExpression(ExpressionSyntax expression)
+        {
+            _context.Liquid.Append(expression);
+        }
+
+        bool ShouldAsComment(SyntaxNode node)
+        {
+            if (node is PrefixUnaryExpressionSyntax)
+            {
+                return true;
+            }
+
+            if (node is ElementAccessExpressionSyntax)
+            {
+                return true;
+            }
+
+            if (node is LocalDeclarationStatementSyntax)
+            {
+                return true;
+            }
+
+            if (node is IfStatementSyntax)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        void WriteBlock(BlockSyntax block)
+        {
+            var blocks = block.ChildNodes().ToArray();
+            foreach (var node in blocks)
+            {
+                WriteNode(node);
+            }
+        }
+
+        void WriteIdentifierName(IdentifierNameSyntax identifierName)
+        {
+            _context.Liquid.Append(identifierName);
         }
 
         private void WriteVariableDeclaration(VariableDeclarationSyntax variableDeclaration)
@@ -164,12 +272,25 @@ namespace Razor2Liquid
                 {
                     _context.Liquid.Append("assign ");
                     _context.Liquid.Append(variable.Identifier);
-                    _context.Liquid.Append(" = TODO_COMMENT");
-                    _context.AsComment = variable.Initializer;
+                    _context.Liquid.Append(" ");
+                    if (IsSimple(variable.Initializer))
+                    {
+                        _context.Liquid.Append(variable.Initializer);
+                    }
+                    else
+                    {
+                        _context.Liquid.Append("= TODO_COMMENT");
+                        _context.AsComment = variable.Initializer;
+                    }
                 }
 
                 EndCode();
             }
+        }
+
+        bool IsSimple(EqualsValueClauseSyntax variableInitializer)
+        {
+            return variableInitializer?.Value is LiteralExpressionSyntax;
         }
 
         bool IsCultureInfo(EqualsValueClauseSyntax syntax)
@@ -243,7 +364,7 @@ namespace Razor2Liquid
                 }
                 else
                 {
-                    throw new InvalidOperationException($"Unexpected Contant {content}");
+                    throw new InvalidOperationException($"Unexpected Content {content}");
                 }
             }
         }
@@ -287,6 +408,7 @@ namespace Razor2Liquid
             {
                 return false;
             }
+
             return true;
         }
 
@@ -311,9 +433,16 @@ namespace Razor2Liquid
 
         private void WriteMemberAccess(MemberAccessExpressionSyntax memberAccess)
         {
-            StartBars();
-            _context.Model.Liquid.Append(memberAccess.ToString());
-            EndBars();
+            if (_context.Hint != ReadingHint.Expression)
+            {
+                StartBars();
+                _context.Model.Liquid.Append(memberAccess.ToString());
+                EndBars();
+            }
+            else
+            {
+                _context.Model.Liquid.Append(memberAccess.ToString());
+            }
         }
     }
 }

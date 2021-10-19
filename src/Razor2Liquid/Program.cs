@@ -9,7 +9,7 @@ namespace Razor2Liquid
         static void Main(string[] args)
         {
             ConvertTemplates();
-            // DumpIt();
+             DumpIt();
         }
 
         private static void ConvertTemplates()
@@ -41,7 +41,13 @@ namespace Razor2Liquid
 }
 </body>
 ";
-            dumper.Dump(template);
+            var t2 = @"
+@{ var a = true }
+@if (a) {
+  <hello>@a</hello> 
+}
+";
+            dumper.Dump(t2);
         }
     }
 
