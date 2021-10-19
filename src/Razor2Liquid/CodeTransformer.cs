@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -76,7 +77,7 @@ namespace Razor2Liquid
 
             _context.BarsCounter++;
         }
-        
+
         private void StartCode()
         {
             if (_context.CodeCounter == 0 && _context.CodeCounter == 0)
@@ -100,9 +101,8 @@ namespace Razor2Liquid
             {
                 throw new InvalidOperationException($"BarsCounter is {_context.BarsCounter}");
             }
-
         }
-        
+
         private void EndCode()
         {
             _context.CodeCounter--;
@@ -112,11 +112,19 @@ namespace Razor2Liquid
                 _context.Model.Liquid.Append(" %}");
             }
 
+            if (_context.AsComment != null)
+            {
+                _context.Model.Liquid.AppendLine();
+                _context.Model.Liquid.AppendLine("{% comment %}");
+                _context.Model.Liquid.AppendLine(_context.AsComment.ToString());
+                _context.Model.Liquid.AppendLine("{% endcomment %}");
+                _context.AsComment = null;
+            }
+
             if (_context.CodeCounter < 0)
             {
                 throw new InvalidOperationException($"CodeCounter is {_context.CodeCounter}");
             }
-
         }
 
         private void WriteNode(SyntaxNode node)
@@ -148,27 +156,53 @@ namespace Razor2Liquid
             foreach (var variable in variableDeclaration.Variables)
             {
                 StartCode();
-                _context.Liquid.Append("assign ");
-                _context.Liquid.Append(variable.Identifier);
-                _context.Liquid.Append(" = ");
-                WriteInitializer(variable.Initializer);
+                if (IsCultureInfo(variable.Initializer))
+                {
+                    WriteCulture(variable);
+                }
+                else
+                {
+                    _context.Liquid.Append("assign ");
+                    _context.Liquid.Append(variable.Identifier);
+                    _context.Liquid.Append(" = TODO_COMMENT");
+                    _context.AsComment = variable.Initializer;
+                }
+
                 EndCode();
             }
         }
 
-        private void WriteInitializer(EqualsValueClauseSyntax initializer)
+        bool IsCultureInfo(EqualsValueClauseSyntax syntax)
         {
+            var invocation = syntax.FindFirstChildNode<InvocationExpressionSyntax>();
+            if (invocation == null)
+            {
+                return false;
+            }
+
+            return invocation.ToString().Contains("System.Globalization.CultureInfo.GetCultureInfo");
+        }
+
+        private void WriteCulture(VariableDeclaratorSyntax variable)
+        {
+            var initializer = variable.Initializer;
             var invocation = initializer.FindFirstChildNode<InvocationExpressionSyntax>();
             if (invocation == null)
             {
-                return;
+                throw new InvalidOperationException("initializer is not CultureInfo");
             }
 
             if (invocation.ToString().Contains("System.Globalization.CultureInfo.GetCultureInfo"))
             {
+                if (!string.IsNullOrWhiteSpace(_context.CurrentCulture))
+                {
+                    throw new InvalidOperationException("Only One Culture is allowed");
+                }
+
+                _context.CurrentCulture = variable.Identifier.ToString();
                 var argument = invocation.ArgumentList.Arguments.First();
                 var name = argument.ToString().Replace("\"", "");
-                _context.Liquid.AppendFormat("\"---cultureinfo---{0}\"", name);
+                _context.Liquid.AppendFormat("culture '{0}'", name);
             }
         }
 
@@ -228,7 +262,7 @@ namespace Razor2Liquid
             _context.Liquid.Append("\"");
             _context.Liquid.Append(" | translate");
 
-            var arguments = invocation.ArgumentList.Arguments.Skip(1).ToArray();
+            var arguments = invocation.ArgumentList.Arguments.Where(NoCultureInfoFilter).Skip(1).ToArray();
             if (arguments.Length > 0)
             {
                 _context.Liquid.Append(": ");
@@ -242,7 +276,18 @@ namespace Razor2Liquid
                     }
                 }
             }
+
             EndBars();
+        }
+
+        bool NoCultureInfoFilter(ArgumentSyntax arg)
+        {
+            var name = arg.ToString();
+            if (string.Equals(name, _context.CurrentCulture))
+            {
+                return false;
+            }
+            return true;
         }
 
         private void WriteLiteral(LiteralExpressionSyntax literal)

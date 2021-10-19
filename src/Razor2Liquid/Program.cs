@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Linq;
 
 namespace Razor2Liquid
@@ -7,14 +8,15 @@ namespace Razor2Liquid
     {
         static void Main(string[] args)
         {
-        //    ConvertTemplates();
-            DumpIt();
+            ConvertTemplates();
+            // DumpIt();
         }
 
         private static void ConvertTemplates()
         {
             var converter = new TemplateConverter();
-            converter.ConvertFolder(@"C:\src\arvato\Marketplace\src\BlobStorageContent\mailtemplates\");
+            converter.ConvertFolder("/Users/aweinert/src/arvato/Marketplace/src/BlobStorageContent/mailtemplates");
+//            converter.ConvertFolder(@"C:\src\arvato\Marketplace\src\BlobStorageContent\mailtemplates\");
         }
 
         private static void DumpIt()
@@ -47,21 +49,23 @@ namespace Razor2Liquid
     {
         public void ConvertFolder(string path)
         {
-            var razorFiles = Directory.EnumerateFiles(path).Where(s => Path.GetExtension(s) == ".cshtml");
+            path = Path.GetFullPath(path);
+            var razorFiles = Directory.EnumerateFiles(path).Where(s => Path.GetExtension(s) == ".cshtml")
+                .OrderBy(s=>s).ToArray();
             foreach (var razorFile in razorFiles)
             {
-                ConfertFile(razorFile);
+                ConvertFile(razorFile);
             }
         }
 
-        public void ConfertFile(string file)
+        public void ConvertFile(string file)
         {
             var reader = new RazorReader();
             var model = reader.GetLiquidModel(file);
-            var liquidFile = Path.ChangeExtension(file,".liquid");
-            
-            File.WriteAllText(liquidFile, model.Liquid.ToString());
+            var liquidFile = Path.ChangeExtension(file, ".liquid");
 
+            File.WriteAllText(liquidFile, model.Liquid.ToString());
+            Console.WriteLine("Converted {0}", liquidFile);
         }
     }
 }

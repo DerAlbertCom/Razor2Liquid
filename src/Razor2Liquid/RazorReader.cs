@@ -32,7 +32,7 @@ namespace Razor2Liquid
 
         private void Callback(Span span, ReadingContext context)
         {
-            Console.WriteLine("{0}:{1}", span.Kind, span.Content);
+//            Console.WriteLine("{0}:{1}", span.Kind, span.Content);
 
             switch (span.Kind)
             {

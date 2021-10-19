@@ -1,12 +1,10 @@
 using System;
-using System.IO;
 using FluentAssertions;
-using Razor2Liquid;
 using Xunit;
 
 namespace RazorLiquid.Tests
 {
-    public class LiquidReaderTests
+    public class LiquidReaderTests : ReaderTests
     {
         [Fact]
         public void Markup_Simple()
@@ -230,6 +228,28 @@ namespace RazorLiquid.Tests
         }
 
         [Fact]
+        public void Markup_TranslateFormat_with_culture()
+        {
+            var source = @"
+<html>
+@{
+    var chineseCulture = System.Globalization.CultureInfo.GetCultureInfo(""zh-Hans"");
+      }
+  <body>@TranslateFormat(LocalizationKeys.MultipleEmails.FormofAddress_TextPattern, chineseCulture, Model.CustomerName, ""Ding"")
+  </body>
+</html>
+";
+            var result = GetLiquidString(source);
+            var expected = @"
+<html>
+{% culture 'zh-Hans' %}
+  <body>{{ ""LocalizationKeys.MultipleEmails.FormofAddress_TextPattern"" | translate: Model.CustomerName, ""Ding"" }}
+  </body>
+</html>
+";
+            result.Should().Be(expected);
+        }
+        [Fact]
         public void Markup_CultureAssignedMent()
         {
             var source = @"
@@ -245,7 +265,7 @@ namespace RazorLiquid.Tests
             var expected = @"
 <html>
   <body>
-{% assign chineseCulture = ""---cultureinfo---zh-Hans"" %}
+{% culture 'zh-Hans' %}
   </body>
 </html>
 ";
@@ -300,19 +320,6 @@ namespace RazorLiquid.Tests
 </html>
 ";
             result.Should().Be(expected);
-        }
-        
-        private LiquidModel GetModel(string template)
-        {
-            var reader = new RazorReader();
-
-            var stringReader = new StringReader(template);
-            return reader.GetLiquidModel(stringReader);
-        }
-
-        private string GetLiquidString(string template)
-        {
-            return GetModel(template).Liquid.ToString();
         }
     }
 }

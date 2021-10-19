@@ -20,7 +20,7 @@ namespace Razor2Liquid
             return node.ChildNodes().Filter<T>().FirstOrDefault();
         }
 
-        public static T RecursiveFindFirstChildNode<T>(this SyntaxNode node) where T : SyntaxNode
+        static T RecursiveFindFirstChildNode<T>(this SyntaxNode node) where T : SyntaxNode
         {
             var first = node.FindFirstChildNode<T>();
             if (first != null)
