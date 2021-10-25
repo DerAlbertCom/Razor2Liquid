@@ -517,6 +517,13 @@ namespace Razor2Liquid
                     throw new InvalidOperationException($"Unexpected Content {content}");
                 }
             }
+            else
+            {
+                StartBars();
+                TransformExpression(argument.Expression);
+                _context.Liquid.Append(" | raw");
+                EndBars();
+            }
         }
 
         private void WriteTranslate(InvocationExpressionSyntax invocation)
