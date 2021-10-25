@@ -34,6 +34,11 @@ namespace Razor2Liquid
 
         void TransformCSharpSyntax(CSharpSyntaxNode statementSyntax)
         {
+            var name = statementSyntax.FindFirstChildNode<IdentifierNameSyntax>();
+            if (name != null)
+            {
+                var identifier = name.ToString();
+            }
             switch (statementSyntax)
             {
                 case ExpressionStatementSyntax expressionStatementSyntax:
@@ -115,6 +120,7 @@ namespace Razor2Liquid
 
         void TransformExpression(ExpressionSyntax expressionSyntax)
         {
+            expressionSyntax.FindFirstChildNode<IdentifierNameSyntax>();
             switch (expressionSyntax)
             {
                 case AssignmentExpressionSyntax assignmentExpression:

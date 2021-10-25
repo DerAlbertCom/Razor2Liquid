@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Web.Razor.Parser.SyntaxTree;
 using Microsoft.CodeAnalysis;
@@ -67,7 +68,8 @@ namespace Razor2Liquid
                         context.Liquid.AppendFormat("{{{{ {0} }}}}", name);
                     }
                 }
-            } else if (childNodes.Length != 1)
+            }
+            else if (childNodes.Length != 1)
             {
                 if (context.Inner.Count > 0)
                 {
@@ -86,14 +88,34 @@ namespace Razor2Liquid
                 {
                     continue;
                 }
+
+                var helper = FindHelper(childNode).ToArray();
                 HandleCode(childNode, context);
             }
         }
+
 
         private void HandleCode(SyntaxNode node, ReadingContext context)
         {
             var transformer = new CodeTransformer(context);
             transformer.TransformNode(node);
+        }
+
+        private IEnumerable<SyntaxNode> FindHelper(SyntaxNode node)
+        {
+            var nodes = node.ChildNodes().ToArray();
+            foreach (var childNode in nodes)
+            {
+                var identifier = childNode.FindFirstChildNode<IdentifierNameSyntax>();
+                if (identifier != null)
+                {
+                    var name = identifier.ToString();
+                    if (name == "helper")
+                    {
+                        yield return childNode;
+                    }
+                }
+            }
         }
 
         private bool FindLayout(SyntaxNode node, ReadingContext context)
@@ -124,6 +146,7 @@ namespace Razor2Liquid
                 context.Liquid.Insert(0, $"{{% layout '{context.Model.Layout}' %}}");
                 return true;
             }
+
             return false;
         }
 

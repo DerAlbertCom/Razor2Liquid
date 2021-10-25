@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Web.Razor.Parser;
@@ -16,9 +17,9 @@ namespace Razor2Liquid
         }
 
 
-        public LiquidModel GetLiquidModel(string razorPage)
+        public LiquidModel GetLiquidModel(string fileName)
         {
-            var template = File.ReadAllText(razorPage);
+            var template = File.ReadAllText(fileName);
             return GetLiquidModel(new StringReader(template));
         }
 
@@ -28,10 +29,35 @@ namespace Razor2Liquid
             var model = new LiquidModel();
             var context = new ReadingContext(model);
             ParserVisitor visitor =
-                new CallbackVisitor(span => Callback(span, context), error => ErrorCallback(error, context));
+                new CallbackVisitor(span => CallbackParser(span, context), error => ErrorCallback(error, context));
 
             parser.Parse(reader, visitor);
             return model;
+        }
+
+
+        public IDictionary<string, string> GetHelpers(string fileName)
+        {
+            var template = File.ReadAllText(fileName);
+            return GetHelpers(new StringReader(template));
+        }
+
+        public IDictionary<string, string> GetHelpers(TextReader reader)
+        {
+            var parser = new RazorParser(new CSharpCodeParser(), new HtmlMarkupParser());
+            var model = new LiquidModel();
+            var context = new ReadingContext(model);
+            _inHelper = false;
+            _bracesCount = 0;
+            _helperLine.Clear();
+            _helperName = string.Empty;
+            _inPrefix = string.Empty;
+
+            ParserVisitor visitor =
+                new CallbackVisitor(span => CallbackHelper(span, context), error => ErrorCallback(error, context));
+
+            parser.Parse(reader, visitor);
+            return _helpers;
         }
 
         private void ErrorCallback(RazorError error, ReadingContext context)
@@ -39,26 +65,153 @@ namespace Razor2Liquid
             context.Model.AddError(new ParseError(error.Location, error.Message));
         }
 
-        private void Callback(Span span, ReadingContext context)
+        private void CallbackHelper(Span span, ReadingContext context)
         {
             _console?.Invoke("RazorReader= {0}:{1}", new object[] { span.Kind, span.Content });
 
+            var content = span.Content;
+            switch (span.Kind)
+            {
+                case SpanKind.Transition:
+                    _inPrefix = span.Content;
+                    break;
+                case SpanKind.MetaCode:
+                {
+                    if (content.Contains("helper"))
+                    {
+                        _inHelper = true;
+                    }
+                }
+
+                    break;
+                case SpanKind.Comment:
+                    break;
+                case SpanKind.Code:
+                {
+                    if (_inHelper)
+                    {
+                        if (_bracesCount > 0)
+                        {
+                            var code = span.Content.Trim();
+                            if (!string.IsNullOrWhiteSpace(code))
+                            {
+                                _helperLine.Add($"{_inPrefix}{span.Content}");
+                                _inPrefix = string.Empty;
+                            }
+                        }
+                        else
+                        {
+                            if (span.Content.StartsWith("Show"))
+                            {
+                                var index = span.Content.IndexOf('(');
+                                _helperName = span.Content.Substring(4, index - 4);
+                            }
+                        }
+
+                        LineHelpers(span);
+                    }
+                }
+                    break;
+                case SpanKind.Markup:
+                {
+                    if (_inHelper)
+                    {
+                        if (_bracesCount > 0)
+                        {
+                            _helperLine.Add(span.Content);
+                        }
+
+                        LineHelpers(span);
+                    }
+                }
+
+                    break;
+                    default:
+                    throw new ArgumentOutOfRangeException();
+            }
+
+            void LineHelpers(Span s)
+            {
+                var add = s.Content.Count(c => c == '{');
+                var sub = s.Content.Count(c => c == '}');
+                _bracesCount += add;
+                _bracesCount -= sub;
+                if (_bracesCount == 0)
+                {
+                    _helperLine.RemoveAt(_helperLine.Count - 1); // remove last }
+                    _inHelper = false;
+                    if (!string.IsNullOrWhiteSpace(_helperName))
+                    {
+                        var template = string.Join(Environment.NewLine, _helperLine);
+                        _helpers[_helperName] = template;
+                    }
+
+                    _helperName = null;
+                    _helperLine.Clear();
+                }
+            }
+        }
+
+        bool _inHelper = false;
+        int _bracesCount = 0;
+        string _helperName = "";
+        IList<string> _helperLine = new List<string>();
+        IDictionary<string, string> _helpers = new Dictionary<string, string>();
+        string _inPrefix = string.Empty;
+
+        private void CallbackParser(Span span, ReadingContext context)
+        {
+            _console?.Invoke("RazorReader= {0}:{1}", new object[] { span.Kind, span.Content });
+
+            var content = span.Content;
             switch (span.Kind)
             {
                 case SpanKind.Transition:
                     break;
                 case SpanKind.MetaCode:
+                {
+                    if (content.Contains("helper"))
+                    {
+                        _inHelper = true;
+                    }
+                }
+
                     break;
-                // case SpanKind.Comment:
-                //     break;
+                case SpanKind.Comment:
+                    break;
                 case SpanKind.Code:
-                    HandleCode(span, context);
+                {
+                    if (!_inHelper)
+                    {
+                        HandleCode(span, context);
+                    }
+                    else
+                    {
+                        CheckHelper(span);
+                    }
+                }
                     break;
                 case SpanKind.Markup:
-                    HandleMarkup(span, context);
+                    if (!_inHelper)
+                    {
+                        HandleMarkup(span, context);
+                    }
+
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
+            }
+
+            void CheckHelper(Span s)
+            {
+                var add = s.Content.Count(c => c == '{');
+                var sub = s.Content.Count(c => c == '}');
+                _bracesCount += add;
+                _bracesCount -= sub;
+                if (_bracesCount == 0)
+                {
+                    _inHelper = false;
+                }
             }
         }
 

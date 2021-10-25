@@ -8,8 +8,8 @@ namespace Razor2Liquid
     {
         static void Main(string[] args)
         {
-           ConvertTemplates();
-           //  DumpIt();
+          ConvertTemplates();
+          //   DumpIt();
         }
 
         private static void ConvertTemplates()
@@ -27,18 +27,11 @@ namespace Razor2Liquid
 
             var template = @"
 <body>
-	@helper ShowBoleto(Cws.Shop.Model.Order.BankPayment payment)
-	{
-		<br />
-		<font face=""Arial, Helvetica, sans-serif"" color=""#000000"" style=""font-size: 13px; text-decoration: none; line-height: 19px;"">
-			@Translate(LocalizationKeys.OrderConfirmationEmail.BoletoLiteral_Text)
-		</font>
-			@if (!string.IsNullOrEmpty(payment.CustomerAccountHolderName))
-			{
-<intheif>/></intheif>
-                }
-		<br />
-}
+    @ShowBoleto(payment)
+    <br/>
+ @helper ShowBoleto(Payment payment) {
+     <hr />
+ }
 </body>
 ";
             var t2 = @"
@@ -48,7 +41,7 @@ namespace Razor2Liquid
   </body>
 </html>
 ";
-            dumper.Dump(t2);
+            dumper.Dump(template);
         }
     }
 
@@ -74,7 +67,21 @@ namespace Razor2Liquid
             var liquidFile = Path.ChangeExtension(file, ".liquid");
 
             File.WriteAllText(liquidFile, model.Liquid.ToString());
+            WriteHelpers(file);
             Console.WriteLine("Converted {0}", liquidFile);
+        }
+
+        void WriteHelpers(string file)
+        {
+            var reader = new RazorReader();
+            var helpers = reader.GetHelpers(file);
+            foreach (var keyValue in helpers)
+            {
+                Console.WriteLine("Converting {0} Helper {1}", file, keyValue.Key);
+                var model = reader.GetLiquidModel(new StringReader(keyValue.Value));
+                var liquidFile = Path.ChangeExtension(file, $"{keyValue.Key}.liquid");
+                File.WriteAllText(liquidFile, model.Liquid.ToString());
+            }
         }
     }
 }
