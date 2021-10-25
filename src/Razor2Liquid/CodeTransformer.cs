@@ -209,8 +209,8 @@ namespace Razor2Liquid
             else
             {
                 TransformExpression(ifSyntax.Condition);
-                
             }
+
             EndCode();
             TransformCSharpSyntax(ifSyntax.Statement);
             _context.Liquid.AppendLine();
@@ -486,19 +486,87 @@ namespace Razor2Liquid
                 return;
             }
 
-            if (name.ToString() == "Translate")
+            var methodName = name.ToString();
+            switch (methodName)
             {
-                WriteTranslate(invocation);
+                case "Translate":
+                case "TranslateFormat":
+                    WriteTranslate(invocation, string.Empty);
+                    break;
+                case "TranslateRaw":
+                    WriteTranslate(invocation, "raw");
+                    break;
+                case "Raw":
+                    WriteRaw(invocation);
+                    break;
+                case "GetFormattedPrice":
+                    WriteMethod("format_price", invocation);
+                    break;
+                case "ToCurrencyString":
+                    WriteMethod("currency", invocation);
+                    break;
+                case "RenderBody":
+                    WriteRenderbody(invocation);
+                    break;
+                case "ShowBoleto":
+                    WritePartial("Boleto", invocation);
+                    break;
+                case "ShowWireTransfer":
+                    WritePartial("WireTransfer", invocation);
+                    break;
+                default:
+                    throw new NotSupportedException($"WriteInvocation: Unknown Method {methodName}");
+            }
+        }
+
+        void WritePartial(string partialName, InvocationExpressionSyntax invocation)
+        {
+            StartCode();
+            var oldHint = _context.Hint;
+            _context.Hint = ReadingHint.Expression;
+            _context.Liquid.Append($"partial '{partialName}'");
+            foreach (var argument in invocation.ArgumentList.Arguments)
+            {
+                _context.Liquid.Append(", ");
+                TransformExpression(argument.Expression);
+            }
+            _context.Hint = oldHint;
+
+            EndCode();
+        }
+
+        void WriteRenderbody(InvocationExpressionSyntax invocation)
+        {
+            StartCode();
+            _context.Liquid.Append("renderbody");
+            EndCode();
+        }
+
+        void WriteMethod(string filter, InvocationExpressionSyntax invocation)
+        {
+            var argument = invocation.ArgumentList.FindFirstChildNode<ArgumentSyntax>();
+            if (argument == null)
+            {
+                throw new InvalidOperationException($"Argument Expression is expected for {invocation}");
             }
 
-            if (name.ToString() == "TranslateFormat")
-            {
-                WriteTranslate(invocation);
-            }
+            TransformExpression(argument.Expression);
 
-            if (name.ToString() == "Raw")
+            _context.Liquid.Append($" | {filter}");
+
+            var arguments = invocation.ArgumentList.Arguments.Where(NoCultureInfoFilter).Skip(1).ToArray();
+            if (arguments.Length > 0)
             {
-                WriteRaw(invocation);
+                _context.Liquid.Append(": ");
+                for (var index = 0; index < arguments.Length; index++)
+                {
+                    var argumentSyntax = arguments[index];
+                    _context.Liquid.Append(argumentSyntax);
+                    if (index < arguments.Length - 1)
+                    {
+                        _context.Liquid.Append(", ");
+                    }
+                }
             }
         }
 
@@ -526,7 +594,7 @@ namespace Razor2Liquid
             }
         }
 
-        private void WriteTranslate(InvocationExpressionSyntax invocation)
+        private void WriteTranslate(InvocationExpressionSyntax invocation, string lastFilter)
         {
             StartBars();
             var argument = invocation.ArgumentList.FindFirstChildNode<ArgumentSyntax>();
@@ -555,6 +623,10 @@ namespace Razor2Liquid
                 }
             }
 
+            if (!string.IsNullOrWhiteSpace(lastFilter))
+            {
+                _context.Liquid.Append($" | {lastFilter}");
+            }
             EndBars();
         }
 

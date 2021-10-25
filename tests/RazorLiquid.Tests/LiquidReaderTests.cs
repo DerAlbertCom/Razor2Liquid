@@ -213,7 +213,26 @@ namespace RazorLiquid.Tests
 </html>
 ";
             result.Should().Be(expected);
-        }        
+        }    
+        
+        [Fact]
+        public void Markup_TranslateRaw()
+        {
+            var source = @"
+<html>
+  <body>@TranslateRaw(LocalizationKeys.CourseAvailabilityEmail.CourseAvailabilityHeadline_Text)
+  </body>
+</html>
+";
+            var result = GetLiquidString(source);
+            var expected = @"
+<html>
+  <body>{{ ""LocalizationKeys.CourseAvailabilityEmail.CourseAvailabilityHeadline_Text"" | translate | raw }}
+  </body>
+</html>
+";
+            result.Should().Be(expected);
+        } 
         
         [Fact]
         public void Markup_TranslateFormat()
