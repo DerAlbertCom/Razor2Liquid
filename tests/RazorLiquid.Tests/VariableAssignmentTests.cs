@@ -40,5 +40,16 @@ Model.CurrentCart.SortedCourseItems.FirstOrDefault() != null ? !string.IsNullOrE
             var result = GetLiquidString(template);
             result.Should().BeLineEndingNeutral(expected);
         }
+        
+        [Fact]
+        public void Assignment_with_Cast()
+        {
+            var template = "@{ var payment = (Cws.Shop.Model.Order.BankPayment)Model.CurrentCart.Payment; }";
+            var expected = "{% assign payment = Model.CurrentCart.Payment %}";
+            var result = GetLiquidString(template);
+            result.Should().BeLineEndingNeutral(expected);
+            
+        }
+
     }
 }

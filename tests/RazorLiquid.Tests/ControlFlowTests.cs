@@ -43,7 +43,38 @@ namespace RazorLiquid.Tests
 
             result.Should().BeLineEndingNeutral(expected);
         }
+        
+        [Fact]
+        public void If_not_with_more()
+        {
+            var template = "@if (!course.IsBundleItem)";
+            var expected = @"{% unless course.IsBundleItem %}
+";
+            var result = GetLiquidString(template, (t, args) => _outputHelper.WriteLine(t, args));
 
+            result.Should().BeLineEndingNeutral(expected);
+        }
+        
+        [Fact]
+        public void If_with_greater_then()
+        {
+            var template = "@if (course.IsBundleItem > 0)";
+            var expected = @"{% if course.IsBundleItem > 0 %}
+";
+            var result = GetLiquidString(template, (t, args) => _outputHelper.WriteLine(t, args));
+
+            result.Should().BeLineEndingNeutral(expected);
+        }
+        [Fact]
+        public void If_with_lower_then()
+        {
+            var template = "@if (course.IsBundleItem < 0)";
+            var expected = @"{% if course.IsBundleItem < 0 %}
+";
+            var result = GetLiquidString(template, (t, args) => _outputHelper.WriteLine(t, args));
+
+            result.Should().BeLineEndingNeutral(expected);
+        }
         [Fact]
         public void If_assign()
         {
@@ -87,6 +118,27 @@ namespace RazorLiquid.Tests
 {% else %}
 {% assign deliveryOptionLabelLocalizationId = LocalizationKeys.OrderConfirmationEmail.DeliveryOption2Label_Text %}
 {% endif %}
+";
+            
+            var result = GetLiquidString(template, (t, args) => _outputHelper.WriteLine(t, args));
+
+            result.Should().BeLineEndingNeutral(expected);
+            
+        }
+        
+        [Fact]
+        public void SimpleForEachWithAnAssign()
+        {
+            var template = @"
+@{
+    @foreach (var course in Model.CurrentCart.SortedCourseItems) { 
+        var a = course;
+    }
+}";
+            var expected = @"
+{% for course in Model.CurrentCart.SortedCourseItems %}
+{% assign a = course %}
+{% endfor %}
 ";
             
             var result = GetLiquidString(template, (t, args) => _outputHelper.WriteLine(t, args));
