@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Reflection.Metadata;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -17,72 +15,144 @@ namespace Razor2Liquid
             _context = context;
         }
 
-        public void TransformStatement(SyntaxNode node)
+        public void TransformNode(SyntaxNode node)
         {
-            switch (node.Kind())
+            if (node is ExpressionSyntax expressionSyntax)
             {
-                case SyntaxKind.ExpressionStatement:
-                    HandleExpression(node);
-                    break;
-                case SyntaxKind.LocalDeclarationStatement:
-                    HandleLocalDeclaration(node);
-                    break;
-                case SyntaxKind.ForEachStatement:
-                    HandleForEach(node);
-                    break;
-                case SyntaxKind.IfStatement:
-                    HandleIf(node);
-                    break;
-                case SyntaxKind.EmptyStatement:
-                    break;
-                case SyntaxKind.Block:
-                    break;
-
-                default:
-                    throw new ArgumentException(nameof(node), $"Node-Kind of {node.Kind()} is not allowed {node}");
-            }
-        }
-
-        private void HandleIf(SyntaxNode node)
-        {
-            if (node is IfStatementSyntax ifSyntax)
-            {
-                StartCode();
-                _context.Liquid.Append("if ");
-                var old = _context.Hint;
-                _context.Hint = ReadingHint.Expression;
-                WriteNode(ifSyntax.Condition);
-                EndCode();
-                WriteNode(ifSyntax.Statement);
-                _context.Hint = old;
-                _context.Liquid.AppendLine();
-                _context.Inner.Push("if");
+                TransformExpression(expressionSyntax);
                 return;
             }
-
-            WriteAsComment(node.ToString());
+            else if (node is CSharpSyntaxNode statementSyntax)
+            {
+                TransformCSharpSyntax(statementSyntax);
+                return;
+            }
+            throw new NotSupportedException(
+                $"TransformNode: {node.GetType().Name} is not supported for {node.ToString()}");
         }
 
-        private void HandleForEach(SyntaxNode node)
+        void TransformCSharpSyntax(CSharpSyntaxNode statementSyntax)
+        {
+            switch (statementSyntax)
+            {
+                case ExpressionStatementSyntax expressionStatementSyntax:
+                    HandleExpressionsStatement(expressionStatementSyntax);
+                    break;
+                case LocalDeclarationStatementSyntax localDeclarationStatement:
+                    HandleLocalDeclaration(localDeclarationStatement);
+                    break;
+                case VariableDeclarationSyntax variableDeclaration:
+                    WriteVariableDeclaration(variableDeclaration);
+                    break;
+                case ForEachStatementSyntax forEachStatement:
+                    WriteForEach(forEachStatement);
+                    break;
+                case IfStatementSyntax ifStatement:
+                    WriteIf(ifStatement);
+                    break;
+                case EqualsValueClauseSyntax equalsValueClause:
+                    WriteEqualsValueClause(equalsValueClause);
+                    break;
+                case EmptyStatementSyntax emptyStatement:
+                    break;
+                case BlockSyntax block:
+                    WriteBlock(block);
+                    break;
+                default:
+                {
+                    if (ShouldAsComment(statementSyntax))
+                    {
+                        WriteAsComment(statementSyntax.ToString(), statementSyntax.GetType());
+                    }
+                    else
+                    {
+                        throw new NotSupportedException(
+                            $"{statementSyntax.GetType().Name} is not supported for {statementSyntax.ToString()}");
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        void WriteEqualsValueClause(EqualsValueClauseSyntax equalsValueClause)
+        {
+            _context.Liquid.Append($" {equalsValueClause.EqualsToken} ");
+            TransformExpression(equalsValueClause.Value);
+        }
+
+
+        void TransformExpression(ExpressionSyntax expressionSyntax)
+        {
+            switch (expressionSyntax)
+            {
+                case AssignmentExpressionSyntax assignmentExpression:
+                    WriteAssignmentExpression(assignmentExpression);
+                    break;
+                case MemberAccessExpressionSyntax memberAccess:
+                    WriteMemberAccess(memberAccess);
+                    break;
+                case BinaryExpressionSyntax binary:
+                    WriteBinary(binary);
+                    break;
+                case LiteralExpressionSyntax literal:
+                    WriteLiteral(literal);
+                    break;
+                case InvocationExpressionSyntax invocation:
+                    WriteInvocation(invocation);
+                    break;
+                case IdentifierNameSyntax identifierName:
+                    WriteIdentifierName(identifierName);
+                    break;
+                case ExpressionSyntax expression:
+                    WriteExpression(expression);
+                    break;
+                default:
+                {
+                    if (ShouldAsComment(expressionSyntax))
+                    {
+                        WriteAsComment(expressionSyntax.ToString(), expressionSyntax.GetType());
+                    }
+                    else
+                    {
+                        throw new NotSupportedException(
+                            $"{expressionSyntax.GetType().Name} is not supported for {expressionSyntax.ToString()}");
+                    }
+
+                    break;
+                }
+            }
+        }
+        
+        void HandleExpressionsStatement(ExpressionStatementSyntax expressionStatementSyntax)
+        {
+            TransformExpression(expressionStatementSyntax.Expression);
+        }
+
+        private void WriteIf(IfStatementSyntax ifSyntax)
+        {
+            StartCode();
+            _context.Liquid.Append("if ");
+            var old = _context.Hint;
+            _context.Hint = ReadingHint.Expression;
+            TransformNode(ifSyntax.Condition);
+            EndCode();
+            TransformCSharpSyntax(ifSyntax.Statement);
+            _context.Hint = old;
+            _context.Liquid.AppendLine();
+            _context.Inner.Push("if");
+        }
+
+        private void WriteForEach(ForEachStatementSyntax node)
         {
 //            throw new NotImplementedException();
         }
 
-        private void HandleLocalDeclaration(SyntaxNode node)
+        private void HandleLocalDeclaration(LocalDeclarationStatementSyntax node)
         {
-            foreach (var childNode in node.ChildNodes())
-            {
-                WriteNode(childNode);
-            }
+            TransformCSharpSyntax(node.Declaration);
         }
 
-        private void HandleExpression(SyntaxNode node)
-        {
-            foreach (var childNode in node.ChildNodes())
-            {
-                WriteNode(childNode);
-            }
-        }
 
         private void StartBars()
         {
@@ -154,70 +224,24 @@ namespace Razor2Liquid
             _context.Model.Liquid.AppendLine("{% endcomment %}");
         }
 
-        private void WriteNode(SyntaxNode node)
+        void WriteAssignmentExpression(AssignmentExpressionSyntax ae)
         {
-            if (node is MemberAccessExpressionSyntax memberAccess)
-            {
-                WriteMemberAccess(memberAccess);
-            }
-            else if (node is BinaryExpressionSyntax binary)
-            {
-                WriteBinary(binary);
-            }
-            else if (node is LiteralExpressionSyntax literal)
-            {
-                WriteLiteral(literal);
-            }
-            else if (node is InvocationExpressionSyntax invocation)
-            {
-                WriteInvocation(invocation);
-            }
-            else if (node is VariableDeclarationSyntax variableDeclaration)
-            {
-                WriteVariableDeclaration(variableDeclaration);
-            }
-            else if (node is ExpressionStatementSyntax expressionStatement)
-            {
-                WriteExpressionStatement(expressionStatement);
-            }
-            else if (node is IdentifierNameSyntax identifierName)
-            {
-                WriteIdentifierName(identifierName);
-            }
-            else if (node is BlockSyntax block)
-            {
-                WriteBlock(block);
-            }
-            else if (ShouldAsComment(node))
-            {
-                WriteAsComment(node.ToString(), node.GetType());
-            }
-            else if (node is LocalDeclarationStatementSyntax localDeclarationStatement)
-            {
-                WriteAsComment(node.ToString(), node.GetType());
-            }
-            else
-            {
-                throw new NotSupportedException($"{node.GetType().Name} is not supported {node.ToString()}");
-            }
-        }
-
-        void WriteExpressionStatement(ExpressionStatementSyntax expressionStatement)
-        {
-            if (expressionStatement.Expression is AssignmentExpressionSyntax ae)
-            {
-                _context.Liquid.AppendLine();
-                _context.Liquid.Append("{% assign ");
-                WriteExpression(ae.Left);
-                _context.Liquid.Append(" = ");
-                WriteExpression(ae.Right);
-                _context.Liquid.Append(" %}");
-            }
+            _context.Liquid.AppendLine();
+            _context.Liquid.Append("{% assign ");
+            TransformExpression(ae.Left);
+            _context.Liquid.Append(" = ");
+            TransformExpression(ae.Right);
+            _context.Liquid.Append(" %}");
         }
 
         void WriteExpression(ExpressionSyntax expression)
         {
-            _context.Liquid.Append(expression);
+            _context.Liquid.Append(expression.GetType().Name);
+           _context.Liquid.Append(expression);
+            foreach (var childNode in expression.ChildNodes())
+            {
+                TransformNode(childNode);
+            }
         }
 
         bool ShouldAsComment(SyntaxNode node)
@@ -250,7 +274,7 @@ namespace Razor2Liquid
             var blocks = block.ChildNodes().ToArray();
             foreach (var node in blocks)
             {
-                WriteNode(node);
+                TransformNode(node);
             }
         }
 
@@ -335,7 +359,6 @@ namespace Razor2Liquid
             {
                 return;
             }
-
             if (name.ToString() == "Translate")
             {
                 WriteTranslate(invocation);
@@ -420,14 +443,14 @@ namespace Razor2Liquid
         private void WriteBinary(BinaryExpressionSyntax binary)
         {
             StartBars();
-            WriteNode(binary.Left);
+            TransformExpression(binary.Left);
             var kind = binary.OperatorToken.Kind();
             if (kind == SyntaxKind.PlusToken)
             {
                 _context.Liquid.AppendFormat(" | append: ");
             }
 
-            WriteNode(binary.Right);
+            TransformExpression(binary.Right);
             EndBars();
         }
 
@@ -436,7 +459,9 @@ namespace Razor2Liquid
             if (_context.Hint != ReadingHint.Expression)
             {
                 StartBars();
-                _context.Model.Liquid.Append(memberAccess.ToString());
+                TransformExpression(memberAccess.Expression);
+                _context.Liquid.Append(memberAccess.OperatorToken);
+                TransformExpression(memberAccess.Name);
                 EndBars();
             }
             else

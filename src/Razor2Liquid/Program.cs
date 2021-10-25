@@ -8,7 +8,7 @@ namespace Razor2Liquid
     {
         static void Main(string[] args)
         {
-            ConvertTemplates();
+           // ConvertTemplates();
              DumpIt();
         }
 
@@ -16,14 +16,14 @@ namespace Razor2Liquid
         {
             var converter = new TemplateConverter();
             converter.ConvertFolder("/Users/aweinert/src/arvato/Marketplace/src/BlobStorageContent/mailtemplates");
+            converter.ConvertFile("/Users/aweinert/src/arvato/Marketplace/src/BlobStorageContent/mailtemplates/OrderCancellation.Htm.cshtml");
 //            converter.ConvertFolder(@"C:\src\arvato\Marketplace\src\BlobStorageContent\mailtemplates\");
         }
 
         private static void DumpIt()
         {
             var dumper = new TemplateDumper();
-
-            //            var template = File.ReadAllText(@"C:\src\arvato\Marketplace\src\BlobStorageContent\mailtemplates\OrderCancellation.Htm.cshtml");
+        //    var template = File.ReadAllText(@"C:\src\arvato\Marketplace\src\BlobStorageContent\mailtemplates\OrderCancellation.Htm.cshtml");
 
             var template = @"
 <body>
@@ -42,10 +42,11 @@ namespace Razor2Liquid
 </body>
 ";
             var t2 = @"
-@{ var a = true }
-@if (a) {
-  <hello>@a</hello> 
-}
+<html>
+  <body>
+     <img src=""@Model.Urls.ImagesBaseUrl"" />
+  </body>
+</html>
 ";
             dumper.Dump(t2);
         }
@@ -66,6 +67,7 @@ namespace Razor2Liquid
 
         public void ConvertFile(string file)
         {
+            file = Path.GetFullPath(file);
             var reader = new RazorReader();
             var model = reader.GetLiquidModel(file);
             var liquidFile = Path.ChangeExtension(file, ".liquid");

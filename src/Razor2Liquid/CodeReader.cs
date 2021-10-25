@@ -93,9 +93,8 @@ namespace Razor2Liquid
 
         private void HandleCode(SyntaxNode node, ReadingContext context)
         {
-            var kind = node.Kind();
             var transformer = new CodeTransformer(context);
-            transformer.TransformStatement(node);
+            transformer.TransformNode(node);
         }
 
         private bool FindLayout(SyntaxNode node, ReadingContext context)
