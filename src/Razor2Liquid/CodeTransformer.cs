@@ -27,6 +27,7 @@ namespace Razor2Liquid
                 TransformCSharpSyntax(statementSyntax);
                 return;
             }
+
             throw new NotSupportedException(
                 $"TransformNode: {node.GetType().Name} is not supported for {node.ToString()}");
         }
@@ -53,6 +54,9 @@ namespace Razor2Liquid
                 case EqualsValueClauseSyntax equalsValueClause:
                     WriteEqualsValueClause(equalsValueClause);
                     break;
+                case BracketedArgumentListSyntax bracketedArgumentList:
+                    WriteBracketedArgumentList(bracketedArgumentList);
+                    break;
                 case EmptyStatementSyntax emptyStatement:
                     break;
                 case BlockSyntax block:
@@ -75,9 +79,36 @@ namespace Razor2Liquid
             }
         }
 
+        void WriteBracketedArgumentList(BracketedArgumentListSyntax bracketedArgumentList)
+        {
+            foreach (var argument in bracketedArgumentList.Arguments)
+            {
+                var exp = argument.Expression.ToString();
+                if (int.TryParse(exp, out var index))
+                {
+                    WriteIndex(index);
+                    continue;
+                }
+
+                throw new NotSupportedException($"BracketedArgumentListSyntax {bracketedArgumentList}");
+            }
+
+            void WriteIndex(int index)
+            {
+                if (index == 0)
+                {
+                    _context.Liquid.Append(" | first");
+                    return;
+                }
+
+                throw new NotImplementedException($"BracketedArgumentListSyntax, Index {index}");
+            }
+        }
+
+
         void WriteEqualsValueClause(EqualsValueClauseSyntax equalsValueClause)
         {
-            _context.Liquid.Append($" {equalsValueClause.EqualsToken} ");
+            _context.Liquid.Append($"{equalsValueClause.EqualsToken} ");
             TransformExpression(equalsValueClause.Value);
         }
 
@@ -104,6 +135,12 @@ namespace Razor2Liquid
                 case IdentifierNameSyntax identifierName:
                     WriteIdentifierName(identifierName);
                     break;
+                case ElementAccessExpressionSyntax elementAccessExpression:
+                    WriteElementAccessExpression(elementAccessExpression);
+                    break;
+                case ConditionalExpressionSyntax conditionalExpression:
+                    WriteAsComment(conditionalExpression);
+                    break;
                 case ExpressionSyntax expression:
                     WriteExpression(expression);
                     break;
@@ -123,7 +160,21 @@ namespace Razor2Liquid
                 }
             }
         }
-        
+
+        void WriteAsComment(ExpressionSyntax conditionalExpression)
+        {
+            _context.Liquid.Append("TODO_COMMENT %}");
+            WriteAsComment(conditionalExpression.ToString(), conditionalExpression.GetType());
+        }
+
+        void WriteElementAccessExpression(ElementAccessExpressionSyntax elementAccessExpression)
+        {
+            StartBars();
+            TransformExpression(elementAccessExpression.Expression);
+            WriteBracketedArgumentList(elementAccessExpression.ArgumentList);
+            EndBars();
+        }
+
         void HandleExpressionsStatement(ExpressionStatementSyntax expressionStatementSyntax)
         {
             TransformExpression(expressionStatementSyntax.Expression);
@@ -135,12 +186,28 @@ namespace Razor2Liquid
             _context.Liquid.Append("if ");
             var old = _context.Hint;
             _context.Hint = ReadingHint.Expression;
-            TransformNode(ifSyntax.Condition);
+            TransformExpression(ifSyntax.Condition);
             EndCode();
             TransformCSharpSyntax(ifSyntax.Statement);
-            _context.Hint = old;
             _context.Liquid.AppendLine();
             _context.Inner.Push("if");
+            if (ifSyntax.Else != null)
+            {
+                _context.Inner.Push("if");
+                WriteElseClause(ifSyntax.Else);
+                _context.Liquid.AppendLine("");
+                _context.Liquid.AppendLine("{% endif %}");
+                
+            }
+            _context.Hint = old;
+        }
+
+        void WriteElseClause(ElseClauseSyntax elseClause)
+        {
+            StartCode();
+            _context.Liquid.Append("else");
+            EndCode();
+            TransformCSharpSyntax(elseClause.Statement);
         }
 
         private void WriteForEach(ForEachStatementSyntax node)
@@ -237,7 +304,7 @@ namespace Razor2Liquid
         void WriteExpression(ExpressionSyntax expression)
         {
             _context.Liquid.Append(expression.GetType().Name);
-           _context.Liquid.Append(expression);
+            _context.Liquid.Append(expression);
             foreach (var childNode in expression.ChildNodes())
             {
                 TransformNode(childNode);
@@ -246,6 +313,11 @@ namespace Razor2Liquid
 
         bool ShouldAsComment(SyntaxNode node)
         {
+            if (node is ConditionalExpressionSyntax)
+            {
+                return true;
+            }
+
             if (node is PrefixUnaryExpressionSyntax)
             {
                 return true;
@@ -271,10 +343,9 @@ namespace Razor2Liquid
 
         void WriteBlock(BlockSyntax block)
         {
-            var blocks = block.ChildNodes().ToArray();
-            foreach (var node in blocks)
+            foreach (var statement in block.Statements)
             {
-                TransformNode(node);
+                TransformCSharpSyntax(statement);
             }
         }
 
@@ -297,14 +368,13 @@ namespace Razor2Liquid
                     _context.Liquid.Append("assign ");
                     _context.Liquid.Append(variable.Identifier);
                     _context.Liquid.Append(" ");
-                    if (IsSimple(variable.Initializer))
+                    if (variable.Initializer != null)
                     {
-                        _context.Liquid.Append(variable.Initializer);
+                        WriteEqualsValueClause(variable.Initializer);
                     }
                     else
                     {
-                        _context.Liquid.Append("= TODO_COMMENT");
-                        _context.AsComment = variable.Initializer;
+                        _context.Liquid.Append("= \"\"");
                     }
                 }
 
@@ -359,6 +429,7 @@ namespace Razor2Liquid
             {
                 return;
             }
+
             if (name.ToString() == "Translate")
             {
                 WriteTranslate(invocation);
@@ -466,7 +537,9 @@ namespace Razor2Liquid
             }
             else
             {
-                _context.Model.Liquid.Append(memberAccess.ToString());
+                TransformExpression(memberAccess.Expression);
+                _context.Liquid.Append(memberAccess.OperatorToken);
+                TransformExpression(memberAccess.Name);
             }
         }
     }

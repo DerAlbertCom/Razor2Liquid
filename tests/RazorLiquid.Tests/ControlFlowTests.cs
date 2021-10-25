@@ -41,7 +41,7 @@ namespace RazorLiquid.Tests
 ";
             var result = GetLiquidString(template, (t, args) => _outputHelper.WriteLine(t, args));
 
-            result.Should().Be(expected);
+            result.Should().BeLineEndingNeutral(expected);
         }
 
         [Fact]
@@ -63,7 +63,36 @@ namespace RazorLiquid.Tests
 ";
             var result = GetLiquidString(template, (t, args) => _outputHelper.WriteLine(t, args));
 
-            result.Should().Be(expected);
+            result.Should().BeLineEndingNeutral(expected);
+        }
+
+        [Fact]
+        public void IfThenElse()
+        {
+            var template = @"
+                                        @{
+                                            string deliveryOptionLabelLocalizationId;
+                                            if (course.IsDigital)
+                                            {
+                                                deliveryOptionLabelLocalizationId = LocalizationKeys.OrderConfirmationEmail.DeliveryOption1Label_Text;
+                                            }
+                                            else
+                                            {
+                                                deliveryOptionLabelLocalizationId = LocalizationKeys.OrderConfirmationEmail.DeliveryOption2Label_Text;
+                                            }
+                                        }";
+            var expected = @"
+{% assign deliveryOptionLabelLocalizationId = """" %}{% if course.IsDigital %}
+{% assign deliveryOptionLabelLocalizationId = LocalizationKeys.OrderConfirmationEmail.DeliveryOption1Label_Text %}
+{% else %}
+{% assign deliveryOptionLabelLocalizationId = LocalizationKeys.OrderConfirmationEmail.DeliveryOption2Label_Text %}
+{% endif %}
+";
+            
+            var result = GetLiquidString(template, (t, args) => _outputHelper.WriteLine(t, args));
+
+            result.Should().BeLineEndingNeutral(expected);
+            
         }
     }
 }

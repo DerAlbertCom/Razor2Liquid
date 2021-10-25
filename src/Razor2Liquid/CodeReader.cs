@@ -67,14 +67,13 @@ namespace Razor2Liquid
                         context.Liquid.AppendFormat("{{{{ {0} }}}}", name);
                     }
                 }
-            } else if (childNodes.Length == 0)
+            } else if (childNodes.Length != 1)
             {
                 if (context.Inner.Count > 0)
                 {
                     var what = context.Inner.Pop();
                     context.Liquid.AppendFormat("{{% end{0} %}}", what);
                     context.Liquid.AppendLine();
-
                 }
             }
         }

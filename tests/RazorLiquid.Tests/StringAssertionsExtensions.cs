@@ -8,11 +8,11 @@ namespace RazorLiquid.Tests
         public static AndConstraint<StringAssertions> BeLineEndingNeutral(this StringAssertions assertions,
             string expected)
         {
-            var subject = assertions.Subject.Replace("\r\n", "\n");
+            var subject = assertions.Subject.Replace("\r\n", "\n").TrimEnd();
 
             var newAssertion = new StringAssertions(subject);
 
-            expected = expected.Replace("\r\n", "\n");
+            expected = expected.Replace("\r\n", "\n").TrimEnd();
             
 
             return newAssertion.Be(expected);

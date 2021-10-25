@@ -16,9 +16,10 @@ namespace RazorLiquid.Tests
 
             var expected = @"{% assign isFirstItemTransferedProductVoucher = TODO_COMMENT %}
 {% comment %}
-= Model.CurrentCart.SortedCourseItems.FirstOrDefault() != null ? !string.IsNullOrEmpty(Model.CurrentCart.SortedCourseItems.FirstOrDefault().CustomerNumberForProductVoucherTransfer) : false
+---Expression: ConditionalExpressionSyntax ----
+Model.CurrentCart.SortedCourseItems.FirstOrDefault() != null ? !string.IsNullOrEmpty(Model.CurrentCart.SortedCourseItems.FirstOrDefault().CustomerNumberForProductVoucherTransfer) : false
 {% endcomment %}
-";
+ %}";
             result.Should().BeLineEndingNeutral(expected);
         }
 
@@ -27,6 +28,15 @@ namespace RazorLiquid.Tests
         {
             var template = "@{ var priceWidthInPercent = 40; }";
             var expected = "{% assign priceWidthInPercent = 40 %}";
+            var result = GetLiquidString(template);
+            result.Should().BeLineEndingNeutral(expected);
+        }
+        
+        [Fact]
+        public void No_Assignment_is_string()
+        {
+            var template = "@{ var priceWidthInPercent;}";
+            var expected = "{% assign priceWidthInPercent = \"\" %}";
             var result = GetLiquidString(template);
             result.Should().BeLineEndingNeutral(expected);
         }

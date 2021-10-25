@@ -8,15 +8,15 @@ namespace Razor2Liquid
     {
         static void Main(string[] args)
         {
-           // ConvertTemplates();
-             DumpIt();
+           ConvertTemplates();
+           //  DumpIt();
         }
 
         private static void ConvertTemplates()
         {
             var converter = new TemplateConverter();
             converter.ConvertFolder("/Users/aweinert/src/arvato/Marketplace/src/BlobStorageContent/mailtemplates");
-            converter.ConvertFile("/Users/aweinert/src/arvato/Marketplace/src/BlobStorageContent/mailtemplates/OrderCancellation.Htm.cshtml");
+       //     converter.ConvertFile("/Users/aweinert/src/arvato/Marketplace/src/BlobStorageContent/mailtemplates/OrderCancellation.Htm.cshtml");
 //            converter.ConvertFolder(@"C:\src\arvato\Marketplace\src\BlobStorageContent\mailtemplates\");
         }
 
@@ -68,6 +68,7 @@ namespace Razor2Liquid
         public void ConvertFile(string file)
         {
             file = Path.GetFullPath(file);
+            Console.WriteLine("Converting {0}", file);
             var reader = new RazorReader();
             var model = reader.GetLiquidModel(file);
             var liquidFile = Path.ChangeExtension(file, ".liquid");
