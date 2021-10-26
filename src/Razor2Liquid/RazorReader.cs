@@ -167,6 +167,7 @@ namespace Razor2Liquid
             switch (span.Kind)
             {
                 case SpanKind.Transition:
+                    context.SpanKind  = span.Kind;
                     break;
                 case SpanKind.MetaCode:
                 {
@@ -194,6 +195,8 @@ namespace Razor2Liquid
                 case SpanKind.Markup:
                     if (!_inHelper)
                     {
+                        context.SpanKind  = span.Kind;
+                        context.MarkupCounter++;
                         HandleMarkup(span, context);
                     }
 

@@ -16,7 +16,7 @@ namespace RazorLiquid.Tests
 
             var expected = @"{% assign isFirstItemTransferedProductVoucher = TODO_COMMENT %}
 {% comment %}
----Expression: ConditionalExpressionSyntax ---- From: TransformExpression
+---Expression: ConditionalExpressionSyntax ---- From: WriteConditionalExpression
 Model.CurrentCart.SortedCourseItems.FirstOrDefault() != null ? !string.IsNullOrEmpty(Model.CurrentCart.SortedCourseItems.FirstOrDefault().CustomerNumberForProductVoucherTransfer) : false
 {% endcomment %}
  %}";
@@ -46,6 +46,15 @@ Model.CurrentCart.SortedCourseItems.FirstOrDefault() != null ? !string.IsNullOrE
         {
             var template = "@{ var payment = (Cws.Shop.Model.Order.BankPayment)Model.CurrentCart.Payment; }";
             var expected = "{% assign payment = Model.CurrentCart.Payment %}";
+            var result = GetLiquidString(template);
+            result.Should().BeLineEndingNeutral(expected);
+            
+        }
+        [Fact]
+        public void Assignment_with_Tenary()
+        {
+            var template = @"@{ var backgroundOfClosingRow = isFirstItemTransferedProductVoucher ? ""#ffffff"" : ""#cce3f5""; }";
+            var expected = @"{% assign backgroundOfClosingRow = isFirstItemTransferedProductVoucher | tenary: ""#ffffff"", ""#cce3f5"" %}";
             var result = GetLiquidString(template);
             result.Should().BeLineEndingNeutral(expected);
             

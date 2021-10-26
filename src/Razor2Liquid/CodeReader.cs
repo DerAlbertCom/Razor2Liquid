@@ -79,6 +79,7 @@ namespace Razor2Liquid
                 {
                     var what = context.Inner.Pop();
                     context.Liquid.AppendLine();
+                    context.Liquid.AddIndent(context.Inner.Count);
                     context.Liquid.AppendFormat("{{% end{0} %}}", what);
                 }
             }

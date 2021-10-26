@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -65,6 +65,9 @@ namespace Razor2Liquid
                 case BracketedArgumentListSyntax bracketedArgumentList:
                     WriteBracketedArgumentList(bracketedArgumentList);
                     break;
+                case ConditionalExpressionSyntax conditionalExpression:
+                    WriteConditionalExpression(conditionalExpression);
+                    break;
                 case EmptyStatementSyntax emptyStatement:
                     break;
                 case BlockSyntax block:
@@ -84,6 +87,23 @@ namespace Razor2Liquid
 
                     break;
                 }
+            }
+        }
+        
+        private void WriteConditionalExpression(ConditionalExpressionSyntax conditionalExpression)
+        {
+            if (conditionalExpression.Condition is IdentifierNameSyntax)
+            {
+                TransformExpression(conditionalExpression.Condition);
+                _context.Liquid.Append(" | tenary: ");
+                TransformExpression(conditionalExpression.WhenTrue);
+                _context.Liquid.Append(", ");
+                TransformExpression(conditionalExpression.WhenFalse);
+                
+            }
+            else
+            {
+                WriteAsComment(conditionalExpression);
             }
         }
 
@@ -149,6 +169,9 @@ namespace Razor2Liquid
                     break;
                 case PrefixUnaryExpressionSyntax prefixUnaryExpression:
                     WritePrefixUnaryExpression(prefixUnaryExpression);
+                    break;
+                case ConditionalExpressionSyntax conditionalExpressionSyntax:
+                    WriteConditionalExpression(conditionalExpressionSyntax);
                     break;
                 case CastExpressionSyntax castExpression:
                     WriteCastExpression(castExpression);
@@ -259,14 +282,12 @@ namespace Razor2Liquid
                 }
             }
 
-            if (code)
+            if (AppendIf(ifSyntax))
+
             {
                 _context.Liquid.AppendLine("");
+                _context.Liquid.AddIndent(_context.Inner.Count);
                 StartCode();
-            }
-            
-            if (AppendIf(ifSyntax))
-            {
                 _context.Inner.Push("if");
                 _context.Liquid.Append("if ");
             }
@@ -275,7 +296,7 @@ namespace Razor2Liquid
             var old = _context.Hint;
             _context.Hint = ReadingHint.Expression;
             TransformExpression(ifSyntax.Condition);
-            if (code)
+            if (AppendIf(ifSyntax))
             {
                 EndCode();
             }
@@ -292,6 +313,7 @@ namespace Razor2Liquid
                 {
                     return false;
                 }
+
                 var condition = ifStatementSyntax.Condition.ToString();
                 return !string.IsNullOrWhiteSpace(condition);
             }
@@ -304,28 +326,51 @@ namespace Razor2Liquid
                     // assumption that there is not markup in between, the write endif
                     if (elseClauseSyntax.Statement is BlockSyntax blockSyntax)
                     {
-                        if (blockSyntax.Statements.Count > 0)
+                        WriteEndIf(blockSyntax);
+                    }
+
+                    else if (elseClauseSyntax.Statement is IfStatementSyntax ifStatementSyntax)
+                    {
+                        if (ifStatementSyntax.Statement is BlockSyntax blockSyntax2)
                         {
-                            if (_context.Inner.Count > 0)
-                            {
-                                var what = _context.Inner.Pop();
-                                _context.Liquid.AppendLine("");
-                                _context.Liquid.AppendLine($"{{% end{what} %}}");
-                            }
-                            
+                            WriteEndIf(blockSyntax2);
                         }
                     }
                 }
             }
         }
 
+        void WriteEndIf(BlockSyntax blockSyntax)
+        {
+            if (blockSyntax == null)
+            {
+                EndIf();
+            }
+            else if (blockSyntax.Statements.Count > 0)
+            {
+                if (_context.Inner.Count > 0)
+                {
+                    EndIf();
+                }
+            }
+
+            void EndIf()
+            {
+                var what = _context.Inner.Pop();
+                _context.Liquid.AppendLine("");
+                _context.Liquid.AddIndent(_context.Inner.Count);
+                _context.Liquid.AppendLine($"{{% end{what} %}}");
+            }
+        }
+
         void WriteElseClause(ElseClauseSyntax elseClause)
         {
             var statement = false;
-            _context.Liquid.AppendLine("");
-            StartCode();
             if (elseClause.Statement is IfStatementSyntax ifStatement)
             {
+                _context.Liquid.AppendLine("");
+                _context.Liquid.AddIndent(_context.Inner.Count - 1);
+                StartCode();
                 _context.Liquid.Append("elsif ");
                 WriteIf(ifStatement, false);
                 statement = true;
@@ -334,6 +379,9 @@ namespace Razor2Liquid
             }
             else
             {
+                _context.Liquid.AppendLine("");
+                _context.Liquid.AddIndent(_context.Inner.Count - 1);
+                StartCode();
                 _context.Liquid.Append("else");
                 EndCode();
                 _context.Liquid.AppendLine("");
@@ -460,12 +508,6 @@ namespace Razor2Liquid
 
         bool ShouldAsComment(SyntaxNode node)
         {
-            if (node is ConditionalExpressionSyntax)
-            {
-                return true;
-            }
-
-
             if (node is PostfixUnaryExpressionSyntax)
             {
                 return true;
@@ -495,6 +537,8 @@ namespace Razor2Liquid
             {
                 TransformCSharpSyntax(statement);
             }
+
+            //      WriteEndIf(block, true);
         }
 
         void WriteIdentifierName(IdentifierNameSyntax identifierName)
@@ -828,6 +872,19 @@ namespace Razor2Liquid
                 _context.Liquid.Append(memberAccess.OperatorToken);
                 TransformExpression(memberAccess.Name);
             }
+        }
+    }
+
+    public static class StringBuilderExtensions
+    {
+        public static StringBuilder AddIndent(this StringBuilder builder, int count)
+        {
+            if (count > 0)
+            {
+                builder.Append("".PadLeft(count * 2));
+            }
+
+            return builder;
         }
     }
 }

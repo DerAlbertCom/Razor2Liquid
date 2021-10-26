@@ -235,16 +235,67 @@ namespace RazorLiquid.Tests
 ";
             var expected = @"
 {% if Cws.Shop.Model.Enumerations.CourseType.PrometricVoucher == course.CourseType %}
-{% if course.Status == Cws.Shop.Model.Enumerations.OrderStatus.WaitingForPayment %}
+  {% if course.Status == Cws.Shop.Model.Enumerations.OrderStatus.WaitingForPayment %}
 
 {{ ""LocalizationKeys.MultiplePages.WaitingForPaymentInfoLiteral_Text"" | translate }}
 
-{% elsif course.Status == Cws.Shop.Model.Enumerations.OrderStatus.Delivered %}
+  {% elsif course.Status == Cws.Shop.Model.Enumerations.OrderStatus.Delivered %}
 {{ ""LocalizationKeys.OrderConfirmationEmail.DistributePrometricVoucherLiteral_Text"" | translate }}
 
-{% else %}
+  {% else %}
 {{ ""LocalizationKeys.MultiplePages.PrometricVoucherDistributionDelayInfoLiteral_Text"" | translate }}
+  {% endif %}
 {% endif %}
+";
+            var result = GetLiquidString(template, (t, args) => _outputHelper.WriteLine(t, args));
+
+            result.Should().BeLineEndingNeutral(expected);
+
+        }
+        
+        [Fact(Skip = "To hard ;) Manual is easier")]
+        public void If_elseif_else_more_complex()
+        {
+            var template = @"
+@if (Cws.Shop.Model.Enumerations.CourseType.PrometricVoucher.Equals(course.CourseType))
+		{
+			if (course.Status == Cws.Shop.Model.Enumerations.OrderStatus.WaitingForPayment.ToString())
+			{
+				@Translate(LocalizationKeys.MultiplePages.WaitingForPaymentInfoLiteral_Text)
+			}
+			else if (course.Status == Cws.Shop.Model.Enumerations.OrderStatus.Delivered.ToString())
+			{
+				@Translate(LocalizationKeys.OrderConfirmationEmail.DistributePrometricVoucherLiteral_Text)
+			}
+			else
+			{
+				@Translate(LocalizationKeys.MultiplePages.PrometricVoucherDistributionDelayInfoLiteral_Text)
+			}
+		}
+else if (Cws.Shop.Model.Enumerations.CourseType.MsLearningProductVoucher.Equals(course.CourseType))
+											{
+												if (course.Status == Cws.Shop.Model.Enumerations.OrderStatus.WaitingForPayment.ToString())
+												{
+													@Translate(LocalizationKeys.MultiplePages.WaitingForPaymentInfoLiteral_Text)
+												}
+}
+";
+            var expected = @"
+{% if Cws.Shop.Model.Enumerations.CourseType.PrometricVoucher == course.CourseType %}
+  {% if course.Status == Cws.Shop.Model.Enumerations.OrderStatus.WaitingForPayment %}
+
+{{ ""LocalizationKeys.MultiplePages.WaitingForPaymentInfoLiteral_Text"" | translate }}
+
+  {% elsif course.Status == Cws.Shop.Model.Enumerations.OrderStatus.Delivered %}
+{{ ""LocalizationKeys.OrderConfirmationEmail.DistributePrometricVoucherLiteral_Text"" | translate }}
+
+  {% else %}
+{{ ""LocalizationKeys.MultiplePages.PrometricVoucherDistributionDelayInfoLiteral_Text"" | translate }}
+  {% endif %}
+{% elsif Cws.Shop.Model.Enumerations.CourseType.MsLearningProductVoucher = course.CourseType %}
+  {% if course.Status == Cws.Shop.Model.Enumerations.OrderStatus.WaitingForPayment %}
+{{ ""LocalizationKeys.MultiplePages.PrometricVoucherDistributionDelayInfoLiteral_Text"" | translate }}
+  {% endif %}
 {% endif %}
 ";
             var result = GetLiquidString(template, (t, args) => _outputHelper.WriteLine(t, args));
