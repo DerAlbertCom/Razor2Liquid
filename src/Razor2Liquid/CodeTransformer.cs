@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -39,6 +41,7 @@ namespace Razor2Liquid
             {
                 var identifier = name.ToString();
             }
+
             switch (statementSyntax)
             {
                 case ExpressionStatementSyntax expressionStatementSyntax:
@@ -144,6 +147,9 @@ namespace Razor2Liquid
                 case ElementAccessExpressionSyntax elementAccessExpression:
                     WriteElementAccessExpression(elementAccessExpression);
                     break;
+                case PrefixUnaryExpressionSyntax prefixUnaryExpression:
+                    WritePrefixUnaryExpression(prefixUnaryExpression);
+                    break;
                 case CastExpressionSyntax castExpression:
                     WriteCastExpression(castExpression);
                     break;
@@ -164,6 +170,55 @@ namespace Razor2Liquid
             }
         }
 
+        private void WritePrefixUnaryExpression(PrefixUnaryExpressionSyntax prefixUnaryExpression)
+        {
+            var kind = prefixUnaryExpression.OperatorToken.Kind();
+            _context.OperatorKind = kind;
+            TransformExpression(prefixUnaryExpression.Operand);
+            if (_context.Hint == ReadingHint.Expression)
+            {
+                if (prefixUnaryExpression.Operand is IdentifierNameSyntax)
+                {
+                    if (kind == SyntaxKind.ExclamationToken)
+                    {
+                        _context.Liquid.Append(" == false");
+                    }
+                    else
+                    {
+                        _context.Liquid.Append(" == true");
+                    }
+                }
+                else if (prefixUnaryExpression.Operand is MemberAccessExpressionSyntax)
+                {
+                    if (kind == SyntaxKind.ExclamationToken)
+                    {
+                        _context.Liquid.Append(" == false");
+                    }
+                    else
+                    {
+                        _context.Liquid.Append(" == true");
+                    }
+                }
+                else if (prefixUnaryExpression.Operand is InvocationExpressionSyntax invocation)
+                {
+                    var argument = invocation.ArgumentList.Arguments.FirstOrDefault();
+                    if (argument == null)
+                    {
+                        if (kind == SyntaxKind.ExclamationToken)
+                        {
+                            _context.Liquid.Append(" == false");
+                        }
+                        else
+                        {
+                            _context.Liquid.Append(" == true");
+                        }
+                    }
+                }
+            }
+
+            _context.OperatorKind = SyntaxKind.None;
+        }
+
         void WriteCastExpression(CastExpressionSyntax castExpression)
         {
             var oldHint = _context.Hint;
@@ -172,10 +227,10 @@ namespace Razor2Liquid
             _context.Hint = oldHint;
         }
 
-        void WriteAsComment(ExpressionSyntax conditionalExpression)
+        void WriteAsComment(ExpressionSyntax conditionalExpression, [CallerMemberName] string memberName = "")
         {
             _context.Liquid.Append("TODO_COMMENT %}");
-            WriteAsComment(conditionalExpression.ToString(), conditionalExpression.GetType());
+            WriteAsComment(conditionalExpression.ToString(), conditionalExpression.GetType(), memberName);
         }
 
         void WriteElementAccessExpression(ElementAccessExpressionSyntax elementAccessExpression)
@@ -191,67 +246,103 @@ namespace Razor2Liquid
             TransformExpression(expressionStatementSyntax.Expression);
         }
 
-        private void WriteIf(IfStatementSyntax ifSyntax)
+        private void WriteIf(IfStatementSyntax ifSyntax, bool code = true)
         {
-            var isUnless = IsUnless(ifSyntax);
-            StartCode();
-            if (isUnless)
+            var cond = ifSyntax.Condition.ToString();
+            if (string.IsNullOrWhiteSpace(cond))
             {
-                _context.Liquid.Append("unless ");
-                _context.Inner.Push("unless");
+                if (ifSyntax.Else != null)
+                {
+                    _context.Liquid.AppendLine("");
+                    WriteElse(ifSyntax.Else);
+                    return;
+                }
             }
-            else
+
+            if (code)
             {
-                _context.Liquid.Append("if ");
+                _context.Liquid.AppendLine("");
+                StartCode();
+            }
+            
+            if (AppendIf(ifSyntax))
+            {
                 _context.Inner.Push("if");
+                _context.Liquid.Append("if ");
             }
+
 
             var old = _context.Hint;
             _context.Hint = ReadingHint.Expression;
-            if (isUnless && ifSyntax.Condition is PrefixUnaryExpressionSyntax prefix)
+            TransformExpression(ifSyntax.Condition);
+            if (code)
             {
-                TransformExpression(prefix.Operand);
-            }
-            else
-            {
-                TransformExpression(ifSyntax.Condition);
+                EndCode();
             }
 
-            EndCode();
             TransformCSharpSyntax(ifSyntax.Statement);
-            _context.Liquid.AppendLine();
-            if (ifSyntax.Else != null)
-            {
-                WriteElseClause(ifSyntax.Else);
-                if (_context.Inner.Count > 0)
-                {
-                    _context.Inner.Pop();
-                }
-
-                _context.Liquid.AppendLine("");
-                _context.Liquid.AppendLine("{% endif %}");
-            }
+            if (code) _context.Liquid.AppendLine();
+            WriteElse(ifSyntax.Else);
 
             _context.Hint = old;
 
-            bool IsUnless(IfStatementSyntax ifStatementSyntax)
+            bool AppendIf(IfStatementSyntax ifStatementSyntax)
             {
-                if (ifStatementSyntax.Condition is PrefixUnaryExpressionSyntax p)
+                if (ifStatementSyntax.Parent is ElseClauseSyntax)
                 {
-                    var token = p.OperatorToken.Text;
-                    return token == "!";
+                    return false;
                 }
+                var condition = ifStatementSyntax.Condition.ToString();
+                return !string.IsNullOrWhiteSpace(condition);
+            }
 
-                return false;
+            void WriteElse(ElseClauseSyntax elseClauseSyntax)
+            {
+                if (elseClauseSyntax != null)
+                {
+                    WriteElseClause(elseClauseSyntax);
+                    // assumption that there is not markup in between, the write endif
+                    if (elseClauseSyntax.Statement is BlockSyntax blockSyntax)
+                    {
+                        if (blockSyntax.Statements.Count > 0)
+                        {
+                            if (_context.Inner.Count > 0)
+                            {
+                                var what = _context.Inner.Pop();
+                                _context.Liquid.AppendLine("");
+                                _context.Liquid.AppendLine($"{{% end{what} %}}");
+                            }
+                            
+                        }
+                    }
+                }
             }
         }
 
         void WriteElseClause(ElseClauseSyntax elseClause)
         {
+            var statement = false;
+            _context.Liquid.AppendLine("");
             StartCode();
-            _context.Liquid.Append("else");
-            EndCode();
-            TransformCSharpSyntax(elseClause.Statement);
+            if (elseClause.Statement is IfStatementSyntax ifStatement)
+            {
+                _context.Liquid.Append("elsif ");
+                WriteIf(ifStatement, false);
+                statement = true;
+                EndCode();
+                _context.Liquid.AppendLine("");
+            }
+            else
+            {
+                _context.Liquid.Append("else");
+                EndCode();
+                _context.Liquid.AppendLine("");
+            }
+
+            if (!statement)
+            {
+                TransformCSharpSyntax(elseClause.Statement);
+            }
         }
 
         private void WriteForEach(ForEachStatementSyntax node)
@@ -343,13 +434,13 @@ namespace Razor2Liquid
             }
         }
 
-        void WriteAsComment(string value, Type getType = null)
+        void WriteAsComment(string value, Type getType = null, [CallerMemberName] string memberName = "")
         {
             _context.Model.Liquid.AppendLine();
             _context.Model.Liquid.AppendLine("{% comment %}");
             if (getType != null)
             {
-                _context.Liquid.AppendFormat("---Expression: {0} ----", getType.Name);
+                _context.Liquid.AppendFormat("---Expression: {0} ---- From: {1}", getType.Name, memberName);
                 _context.Liquid.AppendLine();
             }
 
@@ -370,11 +461,6 @@ namespace Razor2Liquid
         bool ShouldAsComment(SyntaxNode node)
         {
             if (node is ConditionalExpressionSyntax)
-            {
-                return true;
-            }
-
-            if (node is PrefixUnaryExpressionSyntax)
             {
                 return true;
             }
@@ -489,6 +575,7 @@ namespace Razor2Liquid
 
             if (name == null)
             {
+                WriteFunctionInvocation(invocation);
                 return;
             }
 
@@ -525,6 +612,50 @@ namespace Razor2Liquid
             }
         }
 
+        private void WriteFunctionInvocation(InvocationExpressionSyntax invocation)
+        {
+            if (invocation.Expression is MemberAccessExpressionSyntax memberAccess)
+            {
+                var name = memberAccess.Name.ToString();
+                switch (name)
+                {
+                    case "Equals":
+                    {
+                        TransformExpression(memberAccess.Expression);
+                        if (_context.OperatorKind == SyntaxKind.ExclamationToken)
+                        {
+                            _context.Liquid.Append(" != ");
+                        }
+                        else
+                        {
+                            _context.Liquid.Append(" == ");
+                        }
+
+                        var argument = invocation.ArgumentList.Arguments.First();
+                        TransformExpression(argument.Expression);
+                        return;
+                    }
+                    case "ToString":
+                        TransformExpression(memberAccess.Expression);
+                        return;
+                    case "IsNullOrEmpty":
+                    {
+                        var argument = invocation.ArgumentList.Arguments.First();
+                        TransformExpression(argument.Expression);
+                        _context.Liquid.Append(" | is_null_or_empty");
+                        if (_context.OperatorKind == SyntaxKind.ExclamationToken)
+                        {
+                            _context.Liquid.Append(" == false");
+                        }
+
+                        return;
+                    }
+                }
+            }
+
+            WriteAsComment(invocation);
+        }
+
         void WritePartial(string partialName, InvocationExpressionSyntax invocation)
         {
             StartCode();
@@ -536,6 +667,7 @@ namespace Razor2Liquid
                 _context.Liquid.Append(", ");
                 TransformExpression(argument.Expression);
             }
+
             _context.Hint = oldHint;
 
             EndCode();
@@ -633,6 +765,7 @@ namespace Razor2Liquid
             {
                 _context.Liquid.Append($" | {lastFilter}");
             }
+
             EndBars();
         }
 
@@ -661,6 +794,15 @@ namespace Razor2Liquid
             {
                 _context.Liquid.AppendFormat(" | append: ");
             }
+            else if (kind == SyntaxKind.BarBarToken)
+            {
+                _context.Liquid.AppendFormat(" or ");
+            }
+            else if (kind == SyntaxKind.AmpersandAmpersandToken)
+            {
+                _context.Liquid.AppendFormat(" and ");
+            }
+
             else
             {
                 _context.Liquid.AppendFormat(" {0} ", binary.OperatorToken);

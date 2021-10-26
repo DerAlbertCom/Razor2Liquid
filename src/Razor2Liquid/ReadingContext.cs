@@ -17,6 +17,7 @@ namespace Razor2Liquid
         public string CurrentCulture { get; set; }
         public CSharpSyntaxNode AsComment { get; set; }
         public Stack<string> Inner { get; } = new Stack<string>();
+        public SyntaxKind OperatorKind { get; set; } = SyntaxKind.None;
 
         public ReadingContext(LiquidModel model)
         {

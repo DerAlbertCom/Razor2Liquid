@@ -16,7 +16,7 @@ namespace RazorLiquid.Tests
 
             var expected = @"{% assign isFirstItemTransferedProductVoucher = TODO_COMMENT %}
 {% comment %}
----Expression: ConditionalExpressionSyntax ----
+---Expression: ConditionalExpressionSyntax ---- From: TransformExpression
 Model.CurrentCart.SortedCourseItems.FirstOrDefault() != null ? !string.IsNullOrEmpty(Model.CurrentCart.SortedCourseItems.FirstOrDefault().CustomerNumberForProductVoucherTransfer) : false
 {% endcomment %}
  %}";

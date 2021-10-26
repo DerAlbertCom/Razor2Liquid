@@ -9,7 +9,7 @@ namespace Razor2Liquid
 {
     public class RazorReader
     {
-        Action<string, object[]> _console;
+        private readonly Action<string, object[]> _console;
 
         public RazorReader(Action<string, object[]> console = null)
         {
@@ -152,12 +152,12 @@ namespace Razor2Liquid
             }
         }
 
-        bool _inHelper = false;
-        int _bracesCount = 0;
-        string _helperName = "";
-        IList<string> _helperLine = new List<string>();
-        IDictionary<string, string> _helpers = new Dictionary<string, string>();
-        string _inPrefix = string.Empty;
+        private bool _inHelper = false;
+        private int _bracesCount = 0;
+        private string _helperName = "";
+        private readonly IList<string> _helperLine = new List<string>();
+        private readonly IDictionary<string, string> _helpers = new Dictionary<string, string>();
+        private string _inPrefix = string.Empty;
 
         private void CallbackParser(Span span, ReadingContext context)
         {

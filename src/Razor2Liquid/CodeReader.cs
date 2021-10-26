@@ -53,6 +53,10 @@ namespace Razor2Liquid
             {
                 HandleGlobalStatement(globalStatementSyntax, context);
             }
+            else
+            {
+        //        throw new NotSupportedException($"HandleKind: {node.GetType().Name}");
+            }
         }
 
         void HandleCompilationUnit(CompilationUnitSyntax compilationUnit, ReadingContext context)
@@ -69,13 +73,13 @@ namespace Razor2Liquid
                     }
                 }
             }
-            else if (childNodes.Length != 1)
+            else 
             {
-                if (context.Inner.Count > 0)
+                while (context.Inner.Count > 0)
                 {
                     var what = context.Inner.Pop();
-                    context.Liquid.AppendFormat("{{% end{0} %}}", what);
                     context.Liquid.AppendLine();
+                    context.Liquid.AppendFormat("{{% end{0} %}}", what);
                 }
             }
         }
@@ -88,7 +92,7 @@ namespace Razor2Liquid
                 {
                     continue;
                 }
-
+ 
                 var helper = FindHelper(childNode).ToArray();
                 HandleCode(childNode, context);
             }

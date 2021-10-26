@@ -15,9 +15,9 @@ namespace Razor2Liquid
         private static void ConvertTemplates()
         {
             var converter = new TemplateConverter();
-            converter.ConvertFolder("/Users/aweinert/src/arvato/Marketplace/src/BlobStorageContent/mailtemplates");
+        //    converter.ConvertFolder("/Users/aweinert/src/arvato/Marketplace/src/BlobStorageContent/mailtemplates");
        //     converter.ConvertFile("/Users/aweinert/src/arvato/Marketplace/src/BlobStorageContent/mailtemplates/OrderCancellation.Htm.cshtml");
-//            converter.ConvertFolder(@"C:\src\arvato\Marketplace\src\BlobStorageContent\mailtemplates\");
+           converter.ConvertFolder(@"C:\src\arvato\Marketplace\src\BlobStorageContent\mailtemplates\");
         }
 
         private static void DumpIt()
