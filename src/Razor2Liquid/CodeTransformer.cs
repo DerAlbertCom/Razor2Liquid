@@ -286,7 +286,6 @@ namespace Razor2Liquid
 
             {
                 _context.Liquid.AppendLine("");
-                _context.Liquid.AddIndent(_context.Inner.Count);
                 StartCode();
                 _context.Inner.Push("if");
                 _context.Liquid.Append("if ");
@@ -369,8 +368,7 @@ namespace Razor2Liquid
             if (elseClause.Statement is IfStatementSyntax ifStatement)
             {
                 _context.Liquid.AppendLine("");
-                _context.Liquid.AddIndent(_context.Inner.Count - 1);
-                StartCode();
+                StartCode(elseClause);
                 _context.Liquid.Append("elsif ");
                 WriteIf(ifStatement, false);
                 statement = true;
@@ -380,8 +378,7 @@ namespace Razor2Liquid
             else
             {
                 _context.Liquid.AppendLine("");
-                _context.Liquid.AddIndent(_context.Inner.Count - 1);
-                StartCode();
+                StartCode(elseClause);
                 _context.Liquid.Append("else");
                 EndCode();
                 _context.Liquid.AppendLine("");
@@ -403,11 +400,11 @@ namespace Razor2Liquid
             _context.Liquid.Append(" in ");
             TransformExpression(node.Expression);
             EndCode();
+            _context.Inner.Push("for");
             _context.Liquid.AppendLine();
             TransformCSharpSyntax(node.Statement);
             _context.Liquid.AppendLine();
             _context.Hint = oldHint;
-            _context.Inner.Push("for");
         }
 
         private void HandleLocalDeclaration(LocalDeclarationStatementSyntax node)
@@ -431,14 +428,33 @@ namespace Razor2Liquid
             _context.BarsCounter++;
         }
 
-        private void StartCode()
+        private void StartCode(CSharpSyntaxNode expressionSyntax = null)
         {
             if (_context.CodeCounter == 0 && _context.CodeCounter == 0)
             {
+                var indent = _context.Inner.Count;
+                if (SumIndent(expressionSyntax))
+                {
+                    indent--;
+                }
+                _context.Liquid.AddIndent(indent);
                 _context.Model.Liquid.Append("{% ");
             }
 
             _context.CodeCounter++;
+        }
+
+        private bool SumIndent(CSharpSyntaxNode expressionSyntax)
+        {
+
+            if (expressionSyntax is ElseClauseSyntax )
+            {
+                return true;
+            }
+
+            return false;
+            
+
         }
 
         private void EndBars()
@@ -499,11 +515,12 @@ namespace Razor2Liquid
         void WriteAssignmentExpression(AssignmentExpressionSyntax ae)
         {
             _context.Liquid.AppendLine();
-            _context.Liquid.Append("{% assign ");
+            StartCode(ae);
+            _context.Liquid.Append("assign ");
             TransformExpression(ae.Left);
             _context.Liquid.Append(" = ");
             TransformExpression(ae.Right);
-            _context.Liquid.Append(" %}");
+            EndCode();
         }
 
         bool ShouldAsComment(SyntaxNode node)

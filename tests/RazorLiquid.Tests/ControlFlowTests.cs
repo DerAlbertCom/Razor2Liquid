@@ -89,7 +89,7 @@ namespace RazorLiquid.Tests
 {% assign priceWidthInPercent = 40 %}
 
 {% if course.IsBundleItem %}
-{% assign priceWidthInPercent = 30 %}
+  {% assign priceWidthInPercent = 30 %}
   <ding>{{ priceWidthInPercent }}</ding>
 
 {% endif %}
@@ -117,11 +117,11 @@ namespace RazorLiquid.Tests
             var expected = @"
 {% assign deliveryOptionLabelLocalizationId = """" %}
 {% if course.IsDigital %}
-{% assign deliveryOptionLabelLocalizationId = LocalizationKeys.OrderConfirmationEmail.DeliveryOption1Label_Text %}
+  {% assign deliveryOptionLabelLocalizationId = LocalizationKeys.OrderConfirmationEmail.DeliveryOption1Label_Text %}
 
 {% else %}
 
-{% assign deliveryOptionLabelLocalizationId = LocalizationKeys.OrderConfirmationEmail.DeliveryOption2Label_Text %}
+  {% assign deliveryOptionLabelLocalizationId = LocalizationKeys.OrderConfirmationEmail.DeliveryOption2Label_Text %}
 {% endif %}
 ";
             
@@ -142,7 +142,7 @@ namespace RazorLiquid.Tests
 }";
             var expected = @"
 {% for course in Model.CurrentCart.SortedCourseItems %}
-{% assign a = course %}
+  {% assign a = course %}
 
 {% endfor %}
 ";
